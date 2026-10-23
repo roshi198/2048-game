@@ -8,7 +8,6 @@ on:
       - "index.html"
       - "style.css"
       - "game.js"
-      - "infra/cloudformation.yaml"
       - "deploy.sh"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
@@ -25,7 +24,6 @@ concurrency:
 
 env:
   AWS_REGION: us-east-1
-  STACK_NAME: game-2048
 
 jobs:
   deploy:
@@ -37,16 +35,18 @@ jobs:
       - name: Configure AWS credentials (via OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # Set this repository variable to the RoleArn output of
-          # infra/github-oidc-role.yaml (Settings -> Secrets and variables ->
-          # Actions -> Variables -> New repository variable).
+          # Set this repository variable to the Role ARN printed by
+          # infra/setup-github-oidc-role.sh (Settings -> Secrets and variables
+          # -> Actions -> Variables -> New repository variable).
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Deploy
         run: |
           chmod +x ./deploy.sh
           ./deploy.sh
         env:
-          STACK_NAME: ${{ env.STACK_NAME }}
           REGION: ${{ env.AWS_REGION }}
