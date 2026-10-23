@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  IAM role that GitHub Actions can assume via OIDC (no stored AWS secrets)
+  to deploy the 2048 game stack (CloudFormation + S3 + CloudFront).
+  Deploy this ONCE, manually, before enabling the GitHub Actions workflow.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Description: Your GitHub org or username (the "owner" in owner/repo).
+  GitHubRepo:
+    Type: String
+    Description: The repository name (the "repo" in owner/repo).
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: Branch allowed to assume the role (use * to allow all branches).
+  CreateOIDCProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >
+      Set to "false" if the GitHub OIDC provider already exists in this account
+      (there can only be one per account).
+
+Conditions:
+  ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, "true"]
+
+Resources:
+  # --- GitHub OIDC identity provider (one per AWS account) ---
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      # GitHub's OIDC thumbprint. AWS now validates the cert chain against the
+      # library of trusted CAs, so this value is effectively a placeholder.
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  # --- Role assumed by GitHub Actions ---
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${GitHubRepo}-gha-deploy"
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - ShouldCreateOIDCProvider
+                - !Ref GitHubOIDCProvider
+                - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}"
+      Policies:
+        - PolicyName: deploy-2048
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # CloudFormation stack management
+              - Sid: CloudFormation
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:ListStackResources
+                Resource: "*"
+              # S3: manage the site bucket + upload objects
+              - Sid: S3
+                Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:PutBucketPolicy
+                  - s3:GetBucketPolicy
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource: "*"
+              # CloudFront: create/update distribution + OAC + invalidations
+              - Sid: CloudFront
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateDistribution
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:GetDistribution
+                  - cloudfront:GetDistributionConfig
+                  - cloudfront:TagResource
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:UpdateOriginAccessControl
+                  - cloudfront:GetOriginAccessControl
+                  - cloudfront:DeleteOriginAccessControl
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: "*"
+
+Outputs:
+  RoleArn:
+    Description: >
+      ARN of the role for GitHub Actions. Add this as a repository variable
+      named AWS_DEPLOY_ROLE_ARN (Settings -> Secrets and variables -> Actions -> Variables).
+    Value: !GetAtt DeployRole.Arn

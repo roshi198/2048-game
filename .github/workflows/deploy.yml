@@ -1,0 +1,52 @@
+name: Deploy 2048 to AWS
+
+# Auto-deploy on every push to main. Also allows manual runs from the Actions tab.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "style.css"
+      - "game.js"
+      - "infra/cloudformation.yaml"
+      - "deploy.sh"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+# Required for OIDC: the job requests a short-lived token from GitHub,
+# AWS trusts it, and no long-lived AWS keys are ever stored in GitHub.
+permissions:
+  id-token: write   # issue the OIDC token
+  contents: read    # checkout the repo
+
+concurrency:
+  group: deploy-2048
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: game-2048
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (via OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Set this repository variable to the RoleArn output of
+          # infra/github-oidc-role.yaml (Settings -> Secrets and variables ->
+          # Actions -> Variables -> New repository variable).
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy
+        run: |
+          chmod +x ./deploy.sh
+          ./deploy.sh
+        env:
+          STACK_NAME: ${{ env.STACK_NAME }}
+          REGION: ${{ env.AWS_REGION }}

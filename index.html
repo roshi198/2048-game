@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Play 2048 — join the numbers to reach the 2048 tile!" />
+  <meta name="theme-color" content="#faf8ef" />
+  <title>2048</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='15' fill='%23edc22e'/><text y='68' x='50' font-size='48' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>2048</text></svg>" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-row">
+        <h1 class="title">2048</h1>
+        <div class="scores">
+          <div class="score-box">
+            <div class="score-label">SCORE</div>
+            <div id="score" class="score-value">0</div>
+          </div>
+          <div class="score-box">
+            <div class="score-label">BEST</div>
+            <div id="best" class="score-value">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="intro-row">
+        <p class="intro">
+          Join the tiles, get to <strong>2048!</strong>
+        </p>
+        <button id="new-game" class="btn">New Game</button>
+      </div>
+    </header>
+
+    <div class="game-container">
+      <div id="game-message" class="game-message">
+        <p id="game-message-text"></p>
+        <button id="retry" class="btn">Try again</button>
+      </div>
+      <div class="grid-background" id="grid-background"></div>
+      <div class="tile-container" id="tile-container"></div>
+    </div>
+
+    <p class="hint">
+      <strong>How to play:</strong> Use your <strong>arrow keys</strong> (or <strong>swipe</strong> on touch) to move the tiles.
+      Tiles with the same number merge into one when they touch.
+    </p>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
